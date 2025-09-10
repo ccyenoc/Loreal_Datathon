@@ -1,0 +1,57 @@
+[
+  {
+    "category": "Uncategorized",
+    "trend": "up",
+    "growth_rate": 4.7637752404981155
+  },
+  {
+    "category": "Makeup & Cosmetics",
+    "trend": "up",
+    "growth_rate": 3.93658164025489
+  },
+  {
+    "category": "General Beauty & Buzzwords",
+    "trend": "up",
+    "growth_rate": 3.476661901749581
+  },
+  {
+    "category": "Hair Coloring & Transformation",
+    "trend": "up",
+    "growth_rate": 0.6318736743271751
+  },
+  {
+    "category": "Beauty Reviews & Brands",
+    "trend": "down",
+    "growth_rate": -5.291394389734473
+  },
+  {
+    "category": "Facial Care & Exercises",
+    "trend": "stable",
+    "growth_rate": 0.05883149393819116
+  },
+  {
+    "category": "Men's Fashion & Style",
+    "trend": "up",
+    "growth_rate": 0.17673417548452458
+  },
+  {
+    "category": "Skincare & Anti-Aging",
+    "trend": "stable",
+    "growth_rate": -0.04233834944505226
+  },
+  {
+    "category": "Hair Transformations & Makeovers",
+    "trend": "up",
+    "growth_rate": 0.10863890227118107
+  },
+  {
+    "category": "Hair Styling & Men's Grooming",
+    "trend": "stable",
+    "growth_rate": -0.012956894118427565
+  },
+  {
+    "category": "Vlogs & Lifestyle",
+    "trend": "up",
+    "growth_rate": 0.26651963925654404
+  }
+]

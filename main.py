@@ -1,29 +1,68 @@
+import os
+import re
+import ast
+import numpy as np
 import pandas as pd
 import torch
 from transformers import AutoTokenizer, AutoModel
-import re
-import ast
 from tqdm import tqdm
-import os
 import umap
 import hdbscan
-import numpy as np
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import matplotlib.pyplot as plt
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
+import json
+
+# =============== 0. GLOBAL SETTINGS ===============
+MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+CACHE_FILE = "videos_with_embeddings.pkl"
+FORECAST_HORIZON_MONTHS = 6
+
+def deduplicate_keywords(df_keywords, tokenizer, model, device, threshold=0.9):
+    """
+    Remove near-duplicate keywords using embeddings + cosine similarity.
+    """
+    import numpy as np
+    from sklearn.metrics.pairwise import cosine_similarity
+
+    # Normalize keywords
+    df_keywords["normalized_kw"] = (
+        df_keywords["keywords"]
+        .str.lower()
+        .str.strip()
+        .str.replace(r"\bdescription\b", "", regex=True)
+        .str.replace(r"\s+", " ", regex=True)
+    )
+
+    unique_keywords = df_keywords["normalized_kw"].unique().tolist()
+    embeddings = embed(unique_keywords, tokenizer, model, device).numpy()
+
+    sims = cosine_similarity(embeddings)
+
+    keep = set()
+    seen = set()
+    for i, kw in enumerate(unique_keywords):
+        if kw in seen:
+            continue
+        keep.add(kw)
+        dupes = np.where(sims[i] >= threshold)[0]
+        for j in dupes:
+            seen.add(unique_keywords[j])
+
+    df_keywords = df_keywords[df_keywords["normalized_kw"].isin(keep)].copy()
+    return df_keywords.drop(columns=["normalized_kw"])
 
 
-# --------------------
-# 1️⃣ Load your data
-# --------------------
-df = pd.read_csv("src/cleaned_videos.csv")
 
-if 'video_id' not in df.columns:
-    df = df.reset_index().rename(columns={'index': 'video_id'})
+# =============== 1. LOAD & CLEAN DATA ===============
+def load_data(path: str) -> pd.DataFrame:
+    df = pd.read_csv(path)
+    if "videoId" not in df.columns:
+        df = df.reset_index().rename(columns={"index": "videoId"})
+    return df
 
-# --------------------
-# 2️⃣ Combine title + description + tags
-# --------------------
+
 def safe_join_tags(x):
     if isinstance(x, str):
         try:
@@ -32,246 +71,287 @@ def safe_join_tags(x):
             return x
     return ""
 
-df["text"] = (
-    df["title"].fillna("") + " " +
-    df["description"].fillna("") + " " +
-    df["tags"].apply(safe_join_tags)
-)
 
-# Clean text
-def clean_text(text):
+def clean_text(text: str) -> str:
     text = text.lower()
-    text = re.sub(r"http\S+|www\S+|https\S+", "", text)  # remove URLs
-    text = re.sub(r"\S+@\S+", "", text)  # remove emails
-    text = re.sub(r"[^a-z0-9#\s]", " ", text)  # keep alphanumeric + hashtags
+    text = re.sub(r"http\S+|www\S+|https\S+", "", text)
+    text = re.sub(r"\S+@\S+", "", text)
+    text = re.sub(r"[^a-z0-9#\s]", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
-df["clean_text"] = df["text"].apply(clean_text)
 
-# --------------------
-# 3️⃣ Load model + tokenizer
-# --------------------
-model_name = "sentence-transformers/all-MiniLM-L6-v2"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModel.from_pretrained(model_name)
+def prepare_text(df: pd.DataFrame) -> pd.DataFrame:
+    df["text"] = (
+        df["title"].fillna("")
+        + " "
+        + df["description"].fillna("")
+        + " "
+        + df["tags"].apply(safe_join_tags)
+    )
+    df["clean_text"] = df["text"].apply(clean_text)
+    return df
 
-# Detect best device
-if torch.backends.mps.is_available():
-    device = torch.device("mps")
-elif torch.cuda.is_available():
-    device = torch.device("cuda")
-else:
-    device = torch.device("cpu")
-model = model.to(device)
-print(f"Using device: {device}")
 
-# --------------------
-# 4️⃣ Embedding function
-# --------------------
-def embed(texts, batch_size=128, max_length=128):
+# =============== 2. EMBEDDINGS ===============
+def load_model():
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    model = AutoModel.from_pretrained(MODEL_NAME)
+
+    if torch.backends.mps.is_available():
+        device = torch.device("mps")
+    elif torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+
+    return tokenizer, model.to(device), device
+
+
+def embed(texts, tokenizer, model, device, batch_size=128, max_length=128):
     all_embeddings = []
     for i in tqdm(range(0, len(texts), batch_size), desc="Embedding batches"):
-        batch = texts[i:i+batch_size]
-        encoded_input = tokenizer(
+        batch = texts[i : i + batch_size]
+        encoded = tokenizer(
             batch,
             padding=True,
             truncation=True,
             max_length=max_length,
-            return_tensors="pt"
+            return_tensors="pt",
         ).to(device)
         with torch.no_grad():
-            model_output = model(**encoded_input)
+            model_output = model(**encoded)
         batch_embeddings = model_output.last_hidden_state.mean(dim=1)
         all_embeddings.append(batch_embeddings.cpu())
     return torch.cat(all_embeddings)
 
-# --------------------
-# 5️⃣ Run embeddings (with caching)
-# --------------------
-if os.path.exists("videos_with_embeddings.pkl"):
-    print("⚡ Loading cached embeddings...")
-    df = pd.read_pickle("videos_with_embeddings.pkl")
-else:
-    print("🚀 Generating embeddings...")
-    embeddings = embed(df["clean_text"].tolist())
-    df["embedding"] = embeddings.tolist()
-    df.to_pickle("videos_with_embeddings.pkl")
-    print("✅ Embeddings saved!")
 
-# --------------------
-# 6️⃣ Dimensionality reduction + clustering
-# --------------------
-embeddings_array = np.array(df["embedding"].tolist())
+def get_embeddings(df, tokenizer, model, device) -> pd.DataFrame:
+    if os.path.exists(CACHE_FILE):
+        print("⚡ Loading cached embeddings...")
+        df = pd.read_pickle(CACHE_FILE)
+    else:
+        print("🚀 Generating embeddings...")
+        embeddings = embed(df["clean_text"].tolist(), tokenizer, model, device)
+        df["embedding"] = embeddings.tolist()
+        df.to_pickle(CACHE_FILE)
+        print("✅ Embeddings saved!")
+    return df
 
-# UMAP parameters
-umap_n_neighbors = 15
-umap_n_components = 50
-chunk_size = 5000
 
-all_umap_embeddings = []
-for start in range(0, len(embeddings_array), chunk_size):
-    end = min(start + chunk_size, len(embeddings_array))
-    print(f"Processing embeddings {start} to {end} ...")
-    chunk = embeddings_array[start:end]
-    reducer = umap.UMAP(
-        n_neighbors=umap_n_neighbors,
-        n_components=umap_n_components,
-        metric='euclidean',
-        random_state=42
+# =============== 3. CLUSTERING & KEYWORDS ===============
+def cluster_embeddings(
+    df, n_neighbors=15, n_components=50, min_cluster_size=5, chunk_size=5000
+):
+    embeddings_array = np.array(df["embedding"].tolist())
+    all_umap_embeddings = []
+
+    for start in range(0, len(embeddings_array), chunk_size):
+        end = min(start + chunk_size, len(embeddings_array))
+        print(f"Processing embeddings {start} to {end} ...")
+        reducer = umap.UMAP(
+            n_neighbors=n_neighbors,
+            n_components=n_components,
+            metric="euclidean",
+            random_state=42,
+        )
+        chunk_umap = reducer.fit_transform(embeddings_array[start:end])
+        all_umap_embeddings.append(chunk_umap)
+
+    embeddings_umap_full = np.vstack(all_umap_embeddings)
+    print("UMAP reduction done:", embeddings_umap_full.shape)
+
+    clusterer = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, metric="euclidean")
+    df["cluster"] = clusterer.fit_predict(embeddings_umap_full)
+    print("HDBSCAN clustering done.")
+    return df
+
+
+def extract_keywords(df):
+    cluster_keywords = {}
+    for cluster_id in sorted(df["cluster"].unique()):
+        cluster_texts = df[df["cluster"] == cluster_id]["clean_text"]
+        if len(cluster_texts) == 0:
+            continue
+        vectorizer = TfidfVectorizer(
+            stop_words="english", max_features=10, ngram_range=(1, 3)
+        )
+        vectorizer.fit(cluster_texts)
+        cluster_keywords[cluster_id] = vectorizer.get_feature_names_out().tolist()
+
+    df["keywords"] = df["cluster"].map(cluster_keywords)
+    df_keywords = df.explode("keywords").reset_index(drop=True)
+    return df_keywords[df_keywords["keywords"].notna()]
+
+
+# =============== 4. CATEGORY MAPPING ===============
+def map_keywords_to_categories(df_keywords, tokenizer, model, device, base_confidence=0.5):
+    categories = [
+        "Makeup & Cosmetics",
+        "Hair Transformations & Makeovers",
+        "Beauty Reviews & Brands",
+        "Facial Care & Exercises",
+        "Hair Styling & Men's Grooming",
+        "Skincare & Anti-Aging",
+        "Men's Fashion & Style",
+        "Hair Coloring & Transformation",
+        "Vlogs & Lifestyle",
+    ]
+
+    # Embed categories + keywords
+    category_embeddings = embed(categories, tokenizer, model, device).numpy()
+    keyword_list = df_keywords["keywords"].unique().tolist()
+    keyword_embeddings = embed(keyword_list, tokenizer, model, device).numpy()
+
+    # Compute similarities
+    similarities = cosine_similarity(keyword_embeddings, category_embeddings)
+    best_matches = similarities.argmax(axis=1)
+    best_scores = similarities.max(axis=1)
+
+    # Map keywords to categories
+    keyword_to_category = {kw: categories[idx] for kw, idx in zip(keyword_list, best_matches)}
+    keyword_to_conf = dict(zip(keyword_list, best_scores))
+
+    df_keywords["category"] = df_keywords["keywords"].map(keyword_to_category)
+    df_keywords["category_confidence"] = df_keywords["keywords"].map(keyword_to_conf)
+
+    # Dynamic threshold per category
+    df_keywords = df_keywords.groupby("category").apply(
+        lambda g: g[
+            g["category_confidence"] >= max(base_confidence, g["category_confidence"].quantile(0.25))
+        ]
+    ).reset_index(drop=True)
+
+    # Map generic terms to General Beauty & Buzzwords
+    generic_terms = {"beauty", "makeup", "skincare", "haircare", "tutorial", "review", "tips", "style"}
+    df_keywords.loc[df_keywords["keywords"].isin(generic_terms), "category"] = "General Beauty & Buzzwords"
+
+    # Remove noisy keywords like 'no_data'
+    df_keywords = df_keywords[~df_keywords["keywords"].str.contains("no_data", case=False, na=False)].copy()
+
+    return df_keywords
+
+
+# =============== 5. REPORTING ===============
+def category_summary(df_keywords):
+    summary = (
+        df_keywords.groupby("category")
+        .agg(
+            {
+                "videoId": "count",
+                "viewCount": "mean",
+                "likeCount": "mean",
+                "commentCount": "mean",
+                "engagement_rate": "mean",
+            }
+        )
+        .rename(columns={"videoId": "Num_Videos"})
+        .sort_values("Num_Videos", ascending=False)
     )
-    embeddings_umap = reducer.fit_transform(chunk)
-    all_umap_embeddings.append(embeddings_umap)
 
-embeddings_umap_full = np.vstack(all_umap_embeddings)
-print("UMAP reduction done:", embeddings_umap_full.shape)
+    summary.to_csv("category_trends.csv")
+    print("✅ category_trends.csv saved!")
+    return summary
 
-# HDBSCAN clustering
-clusterer = hdbscan.HDBSCAN(min_cluster_size=5, metric='euclidean')
-df['cluster'] = clusterer.fit_predict(embeddings_umap_full)
-print("HDBSCAN clustering done.")
-num_clusters = len(set(df['cluster'])) - (1 if -1 in df['cluster'] else 0)
-print("Number of clusters found:", num_clusters)
 
-# --------------------
-# 7️⃣ Extract top keywords per cluster
-# --------------------
-cluster_keywords = {}
-for cluster_id in sorted(df['cluster'].unique()):
-    cluster_texts = df[df['cluster'] == cluster_id]['clean_text']
-    if len(cluster_texts) == 0:
-        continue
+# =============== 6. FORECASTING ===============
+def forecast_keyword(keyword, df, periods=6):
+    """Forecast trend for a single keyword."""
+    df_kw = df[df["keywords"] == keyword].copy()
+    if df_kw.empty:
+        return {"keyword": keyword, "trend": "no_data", "growth_rate": 0}
 
-    # Use TF-IDF with 1-3 word ngrams
-    vectorizer = TfidfVectorizer(
-        stop_words='english',
-        max_features=10,      # top 10 keywords/phrases per cluster
-        ngram_range=(1,3)     # single, 2-word, 3-word phrases
+    df_kw["publishedAt"] = pd.to_datetime(df_kw["publishedAt"], errors="coerce")
+    df_kw = (
+        df_kw.set_index("publishedAt")
+        .resample("M")
+        .size()
+        .reset_index(name="count")
     )
-    X = vectorizer.fit_transform(cluster_texts)
-    cluster_keywords[cluster_id] = vectorizer.get_feature_names_out().tolist()
+    if len(df_kw) < 6:
+        return {"keyword": keyword, "trend": "no_data", "growth_rate": 0}
 
-# Map keywords back to videos
-df['keywords'] = df['cluster'].map(cluster_keywords)
-df_keywords = df.explode('keywords').reset_index(drop=True)
-df_keywords = df_keywords[df_keywords['keywords'].notna()]  # remove empty keywords
+    try:
+        model = ExponentialSmoothing(df_kw["count"], trend="add", seasonal=None)
+        fit = model.fit()
+        forecast = fit.forecast(periods)
+    except Exception as e:
+        print(f"⚠️ Forecast failed for {keyword}: {e}")
+        return {"keyword": keyword, "trend": "error", "growth_rate": 0}
 
-# --------------------
-# 8️⃣ Define categories (business-level)
-# --------------------
-categories = [
-    "Makeup & Cosmetics",
-    "Hair Transformations & Makeovers",
-    "Beauty Reviews & Brands",
-    "Facial Care & Exercises",
-    "Hair Styling & Men's Grooming",
-    "Skincare & Anti-Aging",
-    "Men's Fashion & Style",
-    "Hair Coloring & Transformation",
-    "Vlogs & Lifestyle"
-]
+    last_actual = df_kw["count"].iloc[-1]
+    last_forecast = forecast.iloc[-1]
+    growth_rate = (last_forecast - last_actual) / (last_actual + 1e-6)
 
-# --------------------
-# 9️⃣ Embed categories + keywords
-# --------------------
-print("🚀 Embedding categories...")
-category_embeddings = embed(categories).numpy()
+    if growth_rate > 0.1:
+        trend = "up"
+    elif growth_rate < -0.1:
+        trend = "down"
+    else:
+        trend = "stable"
 
-print("🚀 Embedding keywords...")
-keyword_list = df_keywords['keywords'].unique().tolist()
-keyword_embeddings = embed(keyword_list).numpy()
+    return {"keyword": keyword, "trend": trend, "growth_rate": float(growth_rate)}
 
-# --------------------
-# 🔟 Assign category per keyword (with confidence)
-# --------------------
-similarities = cosine_similarity(keyword_embeddings, category_embeddings)
-best_matches = similarities.argmax(axis=1)      # index of closest category
-best_scores = similarities.max(axis=1)          # similarity confidence
 
-# Build mapping
-keyword_to_category_auto = {
-    keyword: categories[idx] for keyword, idx in zip(keyword_list, best_matches)
-}
-keyword_to_confidence = dict(zip(keyword_list, best_scores))
+def forecast_keywords_by_category(df_keywords, periods=6, top_n=10):
+    """Forecast trending keywords grouped by category."""
+    results = []
 
-# Map back into df_keywords
-df_keywords['category'] = df_keywords['keywords'].map(keyword_to_category_auto)
-df_keywords['category_confidence'] = df_keywords['keywords'].map(keyword_to_confidence)
+    for category in df_keywords["category"].unique():
+        df_cat = df_keywords[df_keywords["category"] == category]
+        keywords = df_cat["keywords"].unique().tolist()
 
-# Optional: filter low-confidence matches
-confidence_threshold = 0.5
-df_keywords.loc[df_keywords['category_confidence'] < confidence_threshold, 'category'] = "Uncategorized"
+        keyword_trends = []
+        for kw in keywords:
+            kw_result = forecast_keyword(kw, df_cat, periods=periods)
+            keyword_trends.append(kw_result)
 
-# --------------------
-# 1️⃣1️⃣ Aggregate metrics at category level
-# --------------------
-category_trends = df_keywords.groupby('category').agg({
-    'videoId': 'count',        
-    'viewCount': 'mean',       
-    'likeCount': 'mean',       
-    'commentCount': 'mean',    
-    'engagement_rate': 'mean'  
-}).rename(columns={'videoId': 'Num_Videos'}).sort_values(by='Num_Videos', ascending=False)
+        # sort by growth_rate, keep only top_n
+        keyword_trends = sorted(keyword_trends, key=lambda x: x["growth_rate"], reverse=True)[:top_n]
 
-print(category_trends)
-print(category_trends.head())
+        results.append({
+            "category": category,
+            "keywords": keyword_trends
+        })
 
-# --------------------
-# 1️⃣2️⃣ Trend report per category
-# --------------------
-print("\n====== 📊 TREND REPORT PER CATEGORY ======\n")
+    return results
 
-for category, group in df_keywords.groupby("category"):
-    print(f"📌 {category} — {len(group)} videos")
-    
-    # Top 10 keywords by frequency
-    top_keywords = group["keywords"].value_counts().head(10)
-    print("   🔑 Top Keywords:")
-    for kw, count in top_keywords.items():
-        print(f"      - {kw} ({count} videos)")
-    
-    # Category-level averages (already computed, but per category subset)
-    avg_views = group["viewCount"].mean()
-    avg_likes = group["likeCount"].mean()
-    avg_comments = group["commentCount"].mean()
-    avg_engagement = group["engagement_rate"].mean()
-    
-    print(f"   👀 Avg Views: {avg_views:,.0f}")
-    print(f"   👍 Avg Likes: {avg_likes:,.2f}")
-    print(f"   💬 Avg Comments: {avg_comments:,.2f}")
-    print(f"   📈 Engagement Rate: {avg_engagement:.4f}")
-    print("-" * 50)
 
-# Export category-level summary
-category_trends.to_csv("category_trends.csv", index=True)
-print("✅ category_trends.csv saved!")
+# =============== MAIN PIPELINE ===============
+def main():
+    # 1. Load & prepare data
+    df = load_data("src/cleaned_videos.csv")
+    df["publishedAt"] = pd.to_datetime(df["publishedAt"], errors="coerce")
+    df = prepare_text(df)
 
-# Compute category-level averages
-category_summary = df_keywords.groupby('category').agg({
-    'viewCount': 'mean',
-    'likeCount': 'mean',
-    'commentCount': 'mean',
-    'engagement_rate': 'mean'
-}).rename(columns={
-    'viewCount': 'avg_views',
-    'likeCount': 'avg_likes',
-    'commentCount': 'avg_comments',
-    'engagement_rate': 'avg_engagement_rate'
-})
+    # 2. Load model
+    tokenizer, model, device = load_model()
 
-# Merge category averages into df_keywords
-df_keywords = df_keywords.merge(category_summary, on='category', how='left')
+    # 3. Generate embeddings
+    df = get_embeddings(df, tokenizer, model, device)
 
-# Columns to save
-columns_to_save = [
-    "videoId", "title", "description", "tags", "clean_text",
-    "keywords", "category", "category_confidence",
-    "viewCount", "likeCount", "commentCount", "engagement_rate",
-    "avg_views", "avg_likes", "avg_comments", "avg_engagement_rate"
-]
+    # 4. Cluster & extract keywords
+    df = cluster_embeddings(df)
+    df_keywords = extract_keywords(df)
 
-# Save per-category CSV with averages
-for category, group in df_keywords.groupby('category'):
-    filename = category.replace("&", "and").replace(" ", "_") + ".csv"
-    group[columns_to_save].to_csv(filename, index=False)
-    print(f"✅ Saved {filename} with {len(group)} rows")
+    # 5. Map categories & deduplicate keywords
+    df_keywords = map_keywords_to_categories(df_keywords, tokenizer, model, device)
+    df_keywords = deduplicate_keywords(df_keywords, tokenizer, model, device)
+
+    # 6. Reporting
+    summary = category_summary(df_keywords)
+    print(summary.head())
+
+    # 7. Forecast keyword trends
+    keyword_trend_insights = forecast_keywords_by_category(
+        df_keywords, periods=FORECAST_HORIZON_MONTHS, top_n=10
+    )
+
+    # 8. Save keyword trends
+    with open("keyword_trend_insights.json", "w") as f:
+        json.dump(keyword_trend_insights, f, indent=2)
+
+    print("✅ keyword_trend_insights.json saved!")
+
+if __name__ == "__main__":
+    main()
