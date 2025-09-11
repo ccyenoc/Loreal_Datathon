@@ -25,7 +25,11 @@ MANIFEST
 
 # Virtual environments
 .env
-.venv
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.venv/
 env/
 venv/
 ENV/
@@ -48,26 +52,50 @@ venv.bak/
 ehthumbs.db
 Thumbs.db
 
+# Node.js / Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+package-lock.json
+
+# Next.js
+.next/
+out/
+*.tsbuildinfo
+
+# Production build
+/build
+
+# Vercel
+.vercel
+
 # Machine Learning
 *.pkl
 *.h5
 *.model
-models/
 checkpoints/
 
-# Data files (large datasets)
-*.csv
-!sample_data.csv
-*.parquet
-*.feather
+# Jupyter Notebook
+.ipynb_checkpoints
 
 # Logs
 *.log
 logs/
 
-# Jupyter Notebook
-.ipynb_checkpoints
-*.ipynb
-
-# Cache
+# Cache files
 videos_with_embeddings.pkl
+.cache
+
+# Large data files (too large for GitHub - use Git LFS or external storage)
+backend/second_layer_data/General_Beauty_and_Buzzwords.csv
+backend/second_layer_data/Makeup_and_Cosmetics.csv
+
+# Keep smaller data files and important project files
+!backend/outputs/*.csv
+!backend/outputs/*.json
+!backend/notebook/*.ipynb
+!backend/requirements.txt
+!frontend/package.json
+!frontend/pnpm-lock.yaml
