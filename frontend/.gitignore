@@ -24,4 +24,4 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts
+# next-env.d.ts - Keep this file for TypeScript environment
