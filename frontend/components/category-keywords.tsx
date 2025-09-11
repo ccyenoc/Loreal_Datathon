@@ -1,95 +1,10 @@
+"use client"
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, TrendingDown, Minus } from "lucide-react"
-
-// Beauty industry keyword data organized by categories
-const categoryData = [
-  {
-    category: "General Beauty & Buzzwords",
-    keywords: [
-      { keyword: "makeup", trend: "up", growth_rate: 2.86 },
-      { keyword: "beauty", trend: "up", growth_rate: 2.6 },
-      { keyword: "haircare", trend: "up", growth_rate: 0.25 },
-      { keyword: "skincare", trend: "up", growth_rate: 0.11 },
-      { keyword: "review", trend: "down", growth_rate: -0.29 },
-    ],
-  },
-  {
-    category: "Makeup & Cosmetics",
-    keywords: [
-      { keyword: "spots", trend: "up", growth_rate: 85.39 },
-      { keyword: "best skin", trend: "up", growth_rate: 59.09 },
-      { keyword: "makeup skincare", trend: "up", growth_rate: 42.14 },
-      { keyword: "makeup skincare routine", trend: "up", growth_rate: 42.14 },
-      { keyword: "quick", trend: "up", growth_rate: 16.48 },
-      { keyword: "makeup products month", trend: "up", growth_rate: 14.64 },
-      { keyword: "month", trend: "up", growth_rate: 14.64 },
-      { keyword: "makeupartist makeuptutorial", trend: "up", growth_rate: 10.79 },
-      { keyword: "natural blush", trend: "up", growth_rate: 6.0 },
-      { keyword: "headwear", trend: "up", growth_rate: 5.91 },
-    ],
-  },
-  {
-    category: "Beauty Reviews & Brands",
-    keywords: [
-      { keyword: "naturalmakeup luxurybeauty", trend: "up", growth_rate: 16.75 },
-      { keyword: "hair beauty", trend: "up", growth_rate: 7.97 },
-      { keyword: "mask beauty amp", trend: "up", growth_rate: 5.54 },
-      { keyword: "hudabeauty", trend: "up", growth_rate: 5.16 },
-      { keyword: "vogue", trend: "up", growth_rate: 4.47 },
-      { keyword: "victoria secret", trend: "up", growth_rate: 3.69 },
-      { keyword: "sephora", trend: "up", growth_rate: 3.41 },
-      { keyword: "hair accessories", trend: "up", growth_rate: 3.39 },
-      { keyword: "healthyhair", trend: "up", growth_rate: 3.35 },
-      { keyword: "beauty amp", trend: "up", growth_rate: 2.93 },
-    ],
-  },
-  {
-    category: "Skincare & Anti-Aging",
-    keywords: [
-      { keyword: "anti aging", trend: "up", growth_rate: 3.96 },
-      { keyword: "unachilenaenuk woman skincare", trend: "up", growth_rate: 2.79 },
-      { keyword: "woman skincare", trend: "up", growth_rate: 2.79 },
-      { keyword: "skincaretips", trend: "up", growth_rate: 2.12 },
-      { keyword: "skin care", trend: "up", growth_rate: 1.24 },
-      { keyword: "naturalmakeup skintint oliveskintone", trend: "up", growth_rate: 1.15 },
-      { keyword: "skin care routine", trend: "up", growth_rate: 1.13 },
-      { keyword: "skincare routine", trend: "up", growth_rate: 0.77 },
-      { keyword: "skincareroutine description", trend: "up", growth_rate: 0.48 },
-      { keyword: "skincareroutine", trend: "up", growth_rate: 0.11 },
-    ],
-  },
-  {
-    category: "Hair Coloring & Transformation",
-    keywords: [
-      { keyword: "haircare description", trend: "up", growth_rate: 12.33 },
-      { keyword: "drastic hair", trend: "up", growth_rate: 6.93 },
-      { keyword: "coloring", trend: "up", growth_rate: 5.94 },
-      { keyword: "color hair", trend: "up", growth_rate: 5.46 },
-      { keyword: "hair color transformations", trend: "up", growth_rate: 5.01 },
-      { keyword: "hairstyles hair", trend: "up", growth_rate: 4.87 },
-      { keyword: "hair balayage", trend: "up", growth_rate: 4.65 },
-      { keyword: "hairdye", trend: "up", growth_rate: 4.35 },
-      { keyword: "professional hair colour", trend: "up", growth_rate: 3.73 },
-      { keyword: "bleaching", trend: "up", growth_rate: 3.67 },
-    ],
-  },
-  {
-    category: "Men's Fashion & Style",
-    keywords: [
-      { keyword: "beard styles", trend: "up", growth_rate: 4.48 },
-      { keyword: "mensgrooming", trend: "up", growth_rate: 1.51 },
-      { keyword: "men description", trend: "up", growth_rate: 1.08 },
-      { keyword: "shorts hairstyle", trend: "up", growth_rate: 0.81 },
-      { keyword: "styles", trend: "up", growth_rate: 0.78 },
-      { keyword: "shorts fashion", trend: "up", growth_rate: 0.61 },
-      { keyword: "fashion short", trend: "up", growth_rate: 0.6 },
-      { keyword: "riddhi siddhi fashion", trend: "up", growth_rate: 0.6 },
-      { keyword: "siddhi fashion short", trend: "up", growth_rate: 0.6 },
-      { keyword: "fashion", trend: "up", growth_rate: 0.59 },
-    ],
-  },
-]
+import { TrendingUp, TrendingDown, Minus, Loader2 } from "lucide-react"
+import { useEffect, useState } from "react"
+import { apiService, CategoryKeywordData } from "@/lib/api"
 
 function getTrendIcon(trend: string) {
   switch (trend) {
@@ -114,6 +29,51 @@ function getTrendColor(trend: string) {
 }
 
 export function CategoryKeywords() {
+  const [categoryData, setCategoryData] = useState<CategoryKeywordData[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const loadCategoryData = async () => {
+      try {
+        setLoading(true)
+        const data = await apiService.getKeywordTrendsByCategory()
+        setCategoryData(data)
+      } catch (err) {
+        setError('Failed to load category data')
+        console.error('Error loading category data:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadCategoryData()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2 text-lg">Loading category data...</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-red-500 text-lg">{error}</p>
+      </div>
+    )
+  }
+
+  if (categoryData.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground text-lg">No category data available</p>
+      </div>
+    )
+  }
   return (
     <div className="space-y-6">
       {categoryData.map((category, index) => {

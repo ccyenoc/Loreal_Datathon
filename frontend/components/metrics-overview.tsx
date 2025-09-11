@@ -1,14 +1,64 @@
+"use client"
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { TrendingUp, TrendingDown, Eye, Target, ArrowUpRight, ArrowDownRight, Sparkles } from "lucide-react"
+import { useState, useEffect } from "react"
+import { apiService, type Metric } from "@/lib/api"
 
 export function MetricsOverview() {
-  const metrics = [
+  const [metrics, setMetrics] = useState<Metric | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const data = await apiService.getMetrics()
+        setMetrics(data)
+      } catch (err) {
+        setError('Failed to load metrics')
+        console.error('Error fetching metrics:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchMetrics()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        {[...Array(4)].map((_, i) => (
+          <Card key={i} className="animate-pulse">
+            <CardHeader className="space-y-2">
+              <div className="h-4 bg-gray-200 rounded"></div>
+              <div className="h-8 bg-gray-200 rounded"></div>
+            </CardHeader>
+            <CardContent>
+              <div className="h-4 bg-gray-200 rounded"></div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    )
+  }
+
+  if (error || !metrics) {
+    return (
+      <div className="text-center p-8">
+        <p className="text-red-500">{error || 'Failed to load metrics'}</p>
+      </div>
+    )
+  }
+
+  const metricCards = [
     {
       title: "Total Keywords Tracked",
-      value: "127",
+      value: metrics.total_keywords.toString(),
       change: "+12%",
-      changeValue: "+14 this month",
+      changeValue: "Active tracking",
       trend: "up" as const,
       icon: Target,
       color: "blue",
@@ -20,9 +70,9 @@ export function MetricsOverview() {
     },
     {
       title: "Trending Up",
-      value: "89",
+      value: metrics.trending_up.toString(),
       change: "+23%",
-      changeValue: "+16 since yesterday",
+      changeValue: "Growing keywords",
       trend: "up" as const,
       icon: TrendingUp,
       color: "green",
@@ -34,9 +84,9 @@ export function MetricsOverview() {
     },
     {
       title: "Trending Down",
-      value: "8",
+      value: metrics.trending_down.toString(),
       change: "-15%",
-      changeValue: "-3 since yesterday",
+      changeValue: "Declining keywords",
       trend: "down" as const,
       icon: TrendingDown,
       color: "orange",
@@ -48,8 +98,8 @@ export function MetricsOverview() {
     },
     {
       title: "Top Growth Rate",
-      value: "128.2%",
-      change: "Exfoliation Reveal Best",
+      value: metrics.top_growth_rate,
+      change: metrics.top_keyword.length > 20 ? metrics.top_keyword.substring(0, 20) + "..." : metrics.top_keyword,
       changeValue: "Leading keyword",
       trend: "up" as const,
       icon: Eye,
@@ -64,7 +114,7 @@ export function MetricsOverview() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-      {metrics.map((metric, index) => (
+      {metricCards.map((metric, index) => (
         <Card 
           key={index} 
           className={`

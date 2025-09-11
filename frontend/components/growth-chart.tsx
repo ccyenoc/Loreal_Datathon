@@ -6,77 +6,12 @@ import { Button } from "@/components/ui/button"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from "recharts"
 import { TrendingUp, BarChart3, Download, Maximize2, RefreshCw } from "lucide-react"
-
-const chartData = [
-  { 
-    category: "Makeup & Cosmetics", 
-    avgGrowth: 42.5, 
-    color: "hsl(var(--chart-1))",
-    trend: "up",
-    change: "+8.2%",
-    keywordCount: 127
-  },
-  { 
-    category: "Skincare & Anti-Aging", 
-    avgGrowth: 18.2, 
-    color: "hsl(var(--chart-2))",
-    trend: "up",
-    change: "+5.1%",
-    keywordCount: 89
-  },
-  { 
-    category: "Hair Coloring", 
-    avgGrowth: 15.8, 
-    color: "hsl(var(--chart-3))",
-    trend: "up",
-    change: "+3.4%",
-    keywordCount: 76
-  },
-  { 
-    category: "Beauty Reviews", 
-    avgGrowth: 12.3, 
-    color: "hsl(var(--chart-4))",
-    trend: "up",
-    change: "+2.8%",
-    keywordCount: 64
-  },
-  { 
-    category: "Facial Care", 
-    avgGrowth: 8.7, 
-    color: "hsl(var(--chart-5))",
-    trend: "up",
-    change: "+1.9%",
-    keywordCount: 52
-  },
-  { 
-    category: "Hair Transformations", 
-    avgGrowth: 6.2, 
-    color: "hsl(var(--chart-1))",
-    trend: "stable",
-    change: "+0.5%",
-    keywordCount: 43
-  },
-  { 
-    category: "Men's Grooming", 
-    avgGrowth: 4.1, 
-    color: "hsl(var(--chart-2))",
-    trend: "down",
-    change: "-0.3%",
-    keywordCount: 31
-  },
-  { 
-    category: "General Beauty", 
-    avgGrowth: 2.8, 
-    color: "hsl(var(--chart-3))",
-    trend: "down",
-    change: "-1.2%",
-    keywordCount: 28
-  },
-]
+import { useState, useEffect } from "react"
+import { apiService, type CategoryBreakdown } from "@/lib/api"
 
 const chartConfig = {
-  avgGrowth: {
-    label: "Average Growth Rate (%)",
+  percentage: {
+    label: "Engagement Rate (%)",
     color: "hsl(var(--chart-1))",
   },
 }
@@ -89,18 +24,22 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         <h3 className="font-semibold text-foreground mb-2">{label}</h3>
         <div className="space-y-2 text-sm">
           <div className="flex items-center justify-between">
-            <span className="text-foreground/70">Growth Rate:</span>
-            <span className="font-bold text-primary">{data.avgGrowth}%</span>
+            <span className="text-foreground/70">Engagement:</span>
+            <span className="font-bold text-primary">{data.percentage}%</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-foreground/70">Change:</span>
-            <Badge variant={data.trend === "up" ? "default" : data.trend === "down" ? "destructive" : "secondary"}>
-              {data.change}
+            <span className="text-foreground/70">Growth:</span>
+            <Badge variant={data.trend === "up" ? "default" : "destructive"}>
+              {data.growth}
             </Badge>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-foreground/70">Keywords:</span>
-            <span className="font-medium">{data.keywordCount}</span>
+            <span className="font-medium">{data.count}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-foreground/70">Views:</span>
+            <span className="font-medium">{data.viewCount?.toLocaleString()}</span>
           </div>
         </div>
       </div>
@@ -110,6 +49,70 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 }
 
 export function GrowthChart() {
+  const [chartData, setChartData] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchChartData = async () => {
+      try {
+        const categoryData = await apiService.getCategoryBreakdown()
+        
+        // Transform data for chart
+        const transformedData = categoryData.map((item, index) => ({
+          category: item.name.length > 15 ? item.name.substring(0, 15) + "..." : item.name,
+          fullName: item.name,
+          percentage: item.percentage,
+          growth: item.growth,
+          trend: item.trend,
+          count: item.count,
+          viewCount: item.viewCount,
+          color: `hsl(var(--chart-${(index % 5) + 1}))`,
+        }))
+        
+        setChartData(transformedData)
+      } catch (err) {
+        setError('Failed to load chart data')
+        console.error('Error fetching chart data:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchChartData()
+  }, [])
+
+  if (loading) {
+    return (
+      <Card className="bg-gradient-to-br from-card to-card/80 backdrop-blur-sm border-border/50 shadow-lg">
+        <CardHeader className="pb-4">
+          <div className="animate-pulse space-y-2">
+            <div className="h-6 bg-gray-200 rounded w-3/4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[450px] bg-gray-100 rounded animate-pulse"></div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (error || !chartData.length) {
+    return (
+      <Card className="bg-gradient-to-br from-card to-card/80 backdrop-blur-sm border-border/50 shadow-lg">
+        <CardContent className="text-center p-8">
+          <p className="text-red-500">{error || 'No chart data available'}</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Calculate summary stats
+  const avgEngagement = chartData.reduce((sum, item) => sum + item.percentage, 0) / chartData.length
+  const maxEngagement = Math.max(...chartData.map(item => item.percentage))
+  const totalKeywords = chartData.reduce((sum, item) => sum + item.count, 0)
+  const categoriesCount = chartData.length
   return (
     <Card className="bg-gradient-to-br from-card to-card/80 backdrop-blur-sm border-border/50 shadow-lg hover:shadow-xl transition-all duration-300">
       <CardHeader className="pb-4">
@@ -119,8 +122,8 @@ export function GrowthChart() {
               <BarChart3 className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <CardTitle className="text-xl font-bold text-foreground">Category Growth Analytics</CardTitle>
-              <p className="text-sm text-foreground/60 mt-1">Average growth rate by beauty category</p>
+              <CardTitle className="text-xl font-bold text-foreground">Category Engagement Analytics</CardTitle>
+              <p className="text-sm text-foreground/60 mt-1">Engagement rates by beauty category</p>
             </div>
           </div>
           
@@ -150,19 +153,19 @@ export function GrowthChart() {
         {/* Summary Stats */}
         <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-gradient-to-r from-blue-500/10 to-blue-600/10 rounded-lg p-3 border border-blue-500/20">
-            <div className="text-lg font-bold text-blue-700 dark:text-blue-300">16.7%</div>
-            <div className="text-xs text-blue-600/80 dark:text-blue-400/80">Average Growth</div>
+            <div className="text-lg font-bold text-blue-700 dark:text-blue-300">{avgEngagement.toFixed(1)}%</div>
+            <div className="text-xs text-blue-600/80 dark:text-blue-400/80">Average Engagement</div>
           </div>
           <div className="bg-gradient-to-r from-green-500/10 to-green-600/10 rounded-lg p-3 border border-green-500/20">
-            <div className="text-lg font-bold text-green-700 dark:text-green-300">42.5%</div>
-            <div className="text-xs text-green-600/80 dark:text-green-400/80">Highest Growth</div>
+            <div className="text-lg font-bold text-green-700 dark:text-green-300">{maxEngagement}%</div>
+            <div className="text-xs text-green-600/80 dark:text-green-400/80">Highest Engagement</div>
           </div>
           <div className="bg-gradient-to-r from-purple-500/10 to-purple-600/10 rounded-lg p-3 border border-purple-500/20">
-            <div className="text-lg font-bold text-purple-700 dark:text-purple-300">8</div>
+            <div className="text-lg font-bold text-purple-700 dark:text-purple-300">{categoriesCount}</div>
             <div className="text-xs text-purple-600/80 dark:text-purple-400/80">Categories</div>
           </div>
           <div className="bg-gradient-to-r from-orange-500/10 to-orange-600/10 rounded-lg p-3 border border-orange-500/20">
-            <div className="text-lg font-bold text-orange-700 dark:text-orange-300">510</div>
+            <div className="text-lg font-bold text-orange-700 dark:text-orange-300">{totalKeywords}</div>
             <div className="text-xs text-orange-600/80 dark:text-orange-400/80">Total Keywords</div>
           </div>
         </div>
@@ -192,7 +195,7 @@ export function GrowthChart() {
                   axisLine={{ stroke: 'hsl(var(--border))' }}
                   tickLine={{ stroke: 'hsl(var(--border))' }}
                   label={{ 
-                    value: 'Growth Rate (%)', 
+                    value: 'Engagement Rate (%)', 
                     angle: -90, 
                     position: 'insideLeft',
                     style: { textAnchor: 'middle', fill: 'hsl(var(--foreground))' }
@@ -200,7 +203,7 @@ export function GrowthChart() {
                 />
                 <ChartTooltip content={<CustomTooltip />} />
                 <Bar 
-                  dataKey="avgGrowth" 
+                  dataKey="percentage" 
                   radius={[6, 6, 0, 0]}
                   className="hover:opacity-80 transition-opacity duration-200"
                 >
@@ -238,7 +241,7 @@ export function GrowthChart() {
               </div>
             </div>
             <div className="text-foreground/60">
-              Data updated every 15 minutes
+              Data updated from real analytics
             </div>
           </div>
         </div>

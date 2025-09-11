@@ -1,10 +1,55 @@
+"use client"
+
+"use client"
+
 import { DashboardHeader } from "@/components/dashboard-header"
 import { MetricsOverview } from "@/components/metrics-overview"
 import { TrendingKeywords } from "@/components/trending-keywords"
 import { CategoryBreakdown } from "@/components/category-breakdown"
 import { GrowthChart } from "@/components/growth-chart"
+import { useState, useEffect } from "react"
+import { apiService, type CategoryBreakdown as CategoryData } from "@/lib/api"
 
 export default function Dashboard() {
+  const [categoryData, setCategoryData] = useState<CategoryData[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchInsights = async () => {
+      try {
+        const data = await apiService.getCategoryBreakdown()
+        setCategoryData(data)
+      } catch (err) {
+        console.error('Error fetching insights:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchInsights()
+  }, [])
+
+  // Get dynamic insights from real data
+  const getTopGrowingCategory = () => {
+    if (!categoryData.length) return { name: "Loading...", growth: "+0%" }
+    
+    const sorted = categoryData
+      .filter(cat => cat.trend === 'up')
+      .sort((a, b) => {
+        const aGrowth = parseFloat(a.growth.replace('%', '').replace('+', ''))
+        const bGrowth = parseFloat(b.growth.replace('%', '').replace('+', ''))
+        return bGrowth - aGrowth
+      })
+    
+    return sorted[0] || { name: "No growth", growth: "0%" }
+  }
+
+  const getTopEngagementCategory = () => {
+    if (!categoryData.length) return { name: "Loading...", percentage: 0 }
+    
+    const sorted = [...categoryData].sort((a, b) => b.percentage - a.percentage)
+    return sorted[0]
+  }
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/10">
       <DashboardHeader />
@@ -43,15 +88,21 @@ export default function Dashboard() {
             <div className="space-y-3">
               <div className="flex items-center justify-between p-3 bg-green-500/5 rounded-lg border border-green-500/10">
                 <span className="text-sm text-foreground">Most Growing Category</span>
-                <span className="text-sm font-semibold text-green-700 dark:text-green-300">Skincare (+45%)</span>
+                <span className="text-sm font-semibold text-green-700 dark:text-green-300">
+                  {loading ? "Loading..." : `${getTopGrowingCategory().name.substring(0, 20)}${getTopGrowingCategory().name.length > 20 ? "..." : ""} (${getTopGrowingCategory().growth})`}
+                </span>
               </div>
               <div className="flex items-center justify-between p-3 bg-blue-500/5 rounded-lg border border-blue-500/10">
-                <span className="text-sm text-foreground">Peak Activity Time</span>
-                <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">2-4 PM EST</span>
+                <span className="text-sm text-foreground">Top Engagement Category</span>
+                <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+                  {loading ? "Loading..." : `${getTopEngagementCategory()?.name?.substring(0, 20)}${(getTopEngagementCategory()?.name?.length || 0) > 20 ? "..." : ""} (${getTopEngagementCategory()?.percentage}%)`}
+                </span>
               </div>
               <div className="flex items-center justify-between p-3 bg-purple-500/5 rounded-lg border border-purple-500/10">
-                <span className="text-sm text-foreground">Emerging Trend</span>
-                <span className="text-sm font-semibold text-purple-700 dark:text-purple-300">K-Beauty Surge</span>
+                <span className="text-sm text-foreground">Active Categories</span>
+                <span className="text-sm font-semibold text-purple-700 dark:text-purple-300">
+                  {loading ? "Loading..." : `${categoryData.filter(cat => cat.trend === 'up').length} of ${categoryData.length} Growing`}
+                </span>
               </div>
             </div>
           </div>

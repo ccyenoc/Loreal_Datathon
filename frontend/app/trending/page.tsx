@@ -1,68 +1,12 @@
+"use client"
+
 import { DashboardHeader } from "@/components/dashboard-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { TrendingUp, TrendingDown, Minus, BarChart3, ArrowRight, Star, Crown, Flame } from "lucide-react"
-
-// Sample trending data by category
-const categoryTrends = [
-  {
-    category: "General Beauty & Buzzwords",
-    trend: "up" as const,
-    change: "+15.2%",
-    icon: "🎯",
-    rank: 4,
-    keywords: [
-      { keyword: "clean beauty", growth: "+28.5%", trend: "up" as const, isHot: true },
-      { keyword: "sustainable skincare", growth: "+22.1%", trend: "up" as const, isHot: true },
-      { keyword: "beauty routine", growth: "+18.7%", trend: "up" as const, isHot: false },
-      { keyword: "skincare tips", growth: "+12.3%", trend: "up" as const, isHot: false },
-      { keyword: "natural ingredients", growth: "+8.9%", trend: "up" as const, isHot: false },
-    ],
-  },
-  {
-    category: "Makeup & Cosmetics",
-    trend: "up" as const,
-    change: "+12.8%",
-    icon: "💄",
-    rank: 1,
-    keywords: [
-      { keyword: "no makeup makeup", growth: "+35.2%", trend: "up" as const, isHot: true },
-      { keyword: "long lasting foundation", growth: "+19.4%", trend: "up" as const, isHot: true },
-      { keyword: "waterproof mascara", growth: "+15.6%", trend: "up" as const, isHot: false },
-      { keyword: "matte lipstick", growth: "+11.2%", trend: "up" as const, isHot: false },
-      { keyword: "contouring tutorial", growth: "-2.1%", trend: "down" as const, isHot: false },
-    ],
-  },
-  {
-    category: "Skincare & Anti-Aging",
-    trend: "up" as const,
-    change: "+18.9%",
-    icon: "🧴",
-    rank: 2,
-    keywords: [
-      { keyword: "retinol serum", growth: "+42.3%", trend: "up" as const, isHot: true },
-      { keyword: "hyaluronic acid", growth: "+31.7%", trend: "up" as const, isHot: true },
-      { keyword: "vitamin c serum", growth: "+25.8%", trend: "up" as const, isHot: true },
-      { keyword: "anti aging cream", growth: "+14.2%", trend: "up" as const, isHot: false },
-      { keyword: "face moisturizer", growth: "+9.6%", trend: "up" as const, isHot: false },
-    ],
-  },
-  {
-    category: "Hair Care & Styling",
-    trend: "stable" as const,
-    change: "+2.1%",
-    icon: "💇‍♀️",
-    rank: 3,
-    keywords: [
-      { keyword: "hair growth serum", growth: "+28.9%", trend: "up" as const, isHot: true },
-      { keyword: "dry shampoo", growth: "+12.4%", trend: "up" as const, isHot: false },
-      { keyword: "hair mask", growth: "+8.7%", trend: "up" as const, isHot: false },
-      { keyword: "curly hair routine", growth: "+5.3%", trend: "up" as const, isHot: false },
-      { keyword: "hair oil treatment", growth: "-1.2%", trend: "down" as const, isHot: false },
-    ],
-  },
-]
+import { TrendingUp, TrendingDown, Minus, BarChart3, ArrowRight, Star, Crown, Flame, Loader2 } from "lucide-react"
+import { useEffect, useState } from "react"
+import { apiService, TrendAnalysisData, TrendSummary } from "@/lib/api"
 
 function getTrendIcon(trend: string) {
   switch (trend) {
@@ -88,15 +32,67 @@ function getTrendColor(trend: string) {
 
 function getCategoryGradient(rank: number) {
   const gradients = [
-    "from-pink-500/20 to-pink-600/20", // Makeup
-    "from-blue-500/20 to-blue-600/20", // Skincare
-    "from-purple-500/20 to-purple-600/20", // Hair
-    "from-green-500/20 to-green-600/20", // General
+    "from-pink-500/20 to-pink-600/20", // Top 1
+    "from-blue-500/20 to-blue-600/20", // Top 2
+    "from-purple-500/20 to-purple-600/20", // Top 3
+    "from-green-500/20 to-green-600/20", // Others
   ]
-  return gradients[rank - 1] || gradients[3]
+  return gradients[Math.min(rank - 1, 3)] || gradients[3]
 }
 
 export default function TrendingPage() {
+  const [trendAnalysis, setTrendAnalysis] = useState<TrendAnalysisData[]>([])
+  const [trendSummary, setTrendSummary] = useState<TrendSummary | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const loadTrendData = async () => {
+      try {
+        setLoading(true)
+        const [analysisData, summaryData] = await Promise.all([
+          apiService.getTrendAnalysis(),
+          apiService.getTrendSummary()
+        ])
+        setTrendAnalysis(analysisData)
+        setTrendSummary(summaryData)
+      } catch (err) {
+        setError('Failed to load trend analysis data')
+        console.error('Error loading trend data:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadTrendData()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/10">
+        <DashboardHeader />
+        <main className="container mx-auto px-6 py-8">
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="ml-2 text-lg">Loading trend analysis...</span>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/10">
+        <DashboardHeader />
+        <main className="container mx-auto px-6 py-8">
+          <div className="text-center py-12">
+            <p className="text-red-500 text-lg">{error}</p>
+          </div>
+        </main>
+      </div>
+    )
+  }
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/10">
       <DashboardHeader />
@@ -125,19 +121,27 @@ export default function TrendingPage() {
           {/* Summary Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
             <div className="bg-gradient-to-r from-green-500/10 to-green-600/10 rounded-lg p-4 border border-green-500/20">
-              <div className="text-2xl font-bold text-green-700 dark:text-green-300">↗ 75%</div>
+              <div className="text-2xl font-bold text-green-700 dark:text-green-300">
+                ↗ {trendSummary?.categories_trending_up_percentage || "0%"}
+              </div>
               <div className="text-sm text-green-600/80 dark:text-green-400/80">Categories Trending Up</div>
             </div>
             <div className="bg-gradient-to-r from-blue-500/10 to-blue-600/10 rounded-lg p-4 border border-blue-500/20">
-              <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">+42.3%</div>
+              <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                {trendSummary?.highest_growth || "+0.0%"}
+              </div>
               <div className="text-sm text-blue-600/80 dark:text-blue-400/80">Highest Growth</div>
             </div>
             <div className="bg-gradient-to-r from-purple-500/10 to-purple-600/10 rounded-lg p-4 border border-purple-500/20">
-              <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">18</div>
+              <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">
+                {trendSummary?.hot_keywords_count || 0}
+              </div>
               <div className="text-sm text-purple-600/80 dark:text-purple-400/80">Hot Keywords</div>
             </div>
             <div className="bg-gradient-to-r from-orange-500/10 to-orange-600/10 rounded-lg p-4 border border-orange-500/20">
-              <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">+15.2%</div>
+              <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">
+                {trendSummary?.avg_category_growth || "+0.0%"}
+              </div>
               <div className="text-sm text-orange-600/80 dark:text-orange-400/80">Avg Category Growth</div>
             </div>
           </div>
@@ -145,7 +149,7 @@ export default function TrendingPage() {
 
         {/* Categories Grid */}
         <div className="grid gap-6">
-          {categoryTrends.map((category, index) => (
+          {trendAnalysis.map((category, index) => (
             <Card 
               key={index} 
               className={`
@@ -240,7 +244,7 @@ export default function TrendingPage() {
                 {/* Category Actions */}
                 <div className="mt-6 pt-4 border-t border-border/30 flex items-center justify-between">
                   <div className="text-sm text-foreground/60">
-                    {category.keywords.filter(k => k.trend === "up").length} keywords trending up
+                    {category.keywords.filter((k) => k.trend === "up").length} keywords trending up
                   </div>
                   <Button variant="outline" size="sm" className="gap-2 bg-background/50 hover:bg-background transition-all duration-200">
                     <Star className="w-4 h-4" />
