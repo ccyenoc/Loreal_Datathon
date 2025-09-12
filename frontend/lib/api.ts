@@ -70,6 +70,24 @@ export interface TrendSummary {
   avg_category_growth: string;
 }
 
+export interface KeywordCheckerRequest {
+  keyword: string;
+}
+
+export interface KeywordCheckerResponse {
+  user_keyword: string;
+  matched_category: string;
+  category_similarity: number;
+  matched_keyword: string;
+  keyword_similarity: number;
+  phase: string;
+  velocity: number;
+  engagement_rate: number;
+  velocity_description: string;
+  engagement_description: string;
+  phase_description: string;
+}
+
 class ApiService {
   private async fetchData<T>(endpoint: string): Promise<T> {
     try {
@@ -118,6 +136,28 @@ class ApiService {
 
   async getTrendSummary(): Promise<TrendSummary> {
     return this.fetchData<TrendSummary>('/trend-summary');
+  }
+
+  async checkKeyword(keyword: string): Promise<KeywordCheckerResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/keyword-checker`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ keyword }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error checking keyword:', error);
+      throw error;
+    }
   }
 }
 

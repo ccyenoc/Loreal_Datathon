@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { BarChart3, Tags, TrendingUp, CopySlash as Crystal, Settings, Moon, Sun, Sparkles } from "lucide-react"
+import { BarChart3, Tags, TrendingUp, CopySlash as Crystal, Settings, Moon, Sun, Sparkles, Search } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
@@ -41,6 +41,14 @@ export function Sidebar() {
       description: "Category trend analysis",
       badge: "Hot",
       badgeVariant: "default" as const,
+    },
+    {
+      href: "/keyword-checker",
+      label: "Keyword Checker",
+      icon: Search,
+      description: "AI-powered keyword analysis",
+      badge: "AI",
+      badgeVariant: "secondary" as const,
     },
     {
       href: "/predictions",

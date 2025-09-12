@@ -1,13 +1,39 @@
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, send_from_directory, request
 from flask_cors import CORS
 import pandas as pd
 import json
 import os
 from collections import defaultdict
 import glob
+import numpy as np
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
+
+# Initialize sentence transformer for embeddings
+print("Loading SentenceTransformer model...")
+model = SentenceTransformer('all-MiniLM-L6-v2')
+print("Model loaded successfully!")
+
+# Load categories and create embeddings
+def load_categories():
+    """Load categories and create embeddings"""
+    try:
+        df = pd.read_csv('outputs/category.csv')
+        categories = df['category'].tolist()
+        
+        # Create embeddings for categories
+        category_embeddings = model.encode(categories)
+        
+        return categories, category_embeddings
+    except Exception as e:
+        print(f"Error loading categories: {e}")
+        return [], []
+
+# Load categories and embeddings on startup
+categories_list, category_embeddings = load_categories()
 
 # Load data on startup
 def load_category_data():
@@ -324,6 +350,94 @@ def get_growth_chart():
         })
     
     return jsonify(chart_data)
+
+@app.route('/api/keyword-checker', methods=['POST'])
+def keyword_checker():
+    """Check keyword and find matching category and trend data"""
+    try:
+        data = request.get_json()
+        if not data or 'keyword' not in data:
+            return jsonify({'error': 'Keyword is required'}), 400
+            
+        user_keyword = data['keyword'].strip()
+        if not user_keyword:
+            return jsonify({'error': 'Keyword cannot be empty'}), 400
+        
+        # Step 1: Find the nearest category using embeddings
+        user_embedding = model.encode([user_keyword])
+        
+        # Calculate cosine similarity with all categories
+        similarities = cosine_similarity(user_embedding, category_embeddings)[0]
+        best_category_idx = np.argmax(similarities)
+        best_category = categories_list[best_category_idx]
+        category_similarity = float(similarities[best_category_idx])
+        
+        print(f"Best matching category for '{user_keyword}': {best_category} (similarity: {category_similarity:.3f})")
+        
+        # Step 2: Load the corresponding keyword trend phases CSV
+        csv_filename = f"third_layer_data/{best_category}_keyword_trend_phases.csv"
+        
+        if not os.path.exists(csv_filename):
+            return jsonify({
+                'error': f'Data file not found for category: {best_category}',
+                'category': best_category,
+                'category_similarity': category_similarity
+            }), 404
+        
+        # Load keyword data for the matched category
+        keyword_df = pd.read_csv(csv_filename)
+        
+        if keyword_df.empty:
+            return jsonify({
+                'error': f'No keyword data found for category: {best_category}',
+                'category': best_category,
+                'category_similarity': category_similarity
+            }), 404
+        
+        # Step 3: Find the closest keyword using embeddings
+        category_keywords = keyword_df['keyword'].tolist()
+        category_keyword_embeddings = model.encode(category_keywords)
+        
+        # Calculate cosine similarity with all keywords in the category
+        keyword_similarities = cosine_similarity(user_embedding, category_keyword_embeddings)[0]
+        best_keyword_idx = np.argmax(keyword_similarities)
+        best_keyword_match = category_keywords[best_keyword_idx]
+        keyword_similarity = float(keyword_similarities[best_keyword_idx])
+        
+        # Extract the trend data for the best matching keyword
+        keyword_data = keyword_df.iloc[best_keyword_idx]
+        
+        result = {
+            'user_keyword': user_keyword,
+            'matched_category': best_category,
+            'category_similarity': round(category_similarity, 3),
+            'matched_keyword': best_keyword_match,
+            'keyword_similarity': round(keyword_similarity, 3),
+            'phase': keyword_data['phase'],
+            'velocity': float(keyword_data['velocity']),
+            'engagement_rate': float(keyword_data['engagement_rate']),
+            'velocity_description': f"{keyword_data['velocity']:.1f} mentions per month (past 3 months)",
+            'engagement_description': f"Popularity score: {keyword_data['engagement_rate']:.3f}",
+            'phase_description': get_phase_description(keyword_data['phase'])
+        }
+        
+        print(f"Keyword checker result: {result}")
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"Error in keyword checker: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+def get_phase_description(phase):
+    """Get description for trend phase"""
+    descriptions = {
+        'Emerging': 'This keyword is in its early adoption phase with growing interest.',
+        'Growing': 'This keyword is gaining momentum and popularity rapidly.',
+        'Peaking': 'This keyword has reached its peak popularity and is widely discussed.',
+        'Decaying': 'This keyword is declining in popularity and mentions.',
+        'Stable': 'This keyword maintains consistent engagement over time.'
+    }
+    return descriptions.get(phase, f'This keyword is in the {phase} phase.')
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
