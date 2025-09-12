@@ -9,21 +9,21 @@ import { Suspense } from "react"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "L'Oréal Analytics Dashboard | Beauty Industry Intelligence",
+  title: "Beauty Scope Dashboard | Beauty Industry Intelligence",
   description: "Advanced beauty industry trends and analytics dashboard powered by L'Oréal. Real-time insights, predictive analytics, and comprehensive market intelligence for beauty professionals.",
   keywords: ["L'Oréal", "beauty analytics", "trends", "cosmetics", "market intelligence", "beauty industry"],
-  authors: [{ name: "L'Oréal Analytics Team" }],
+  authors: [{ name: "Beauty Scope Team" }],
   creator: "L'Oréal",
   publisher: "L'Oréal",
   openGraph: {
-    title: "L'Oréal Analytics Dashboard",
+    title: "Beauty Scope Dashboard",
     description: "Beauty industry trends and analytics dashboard",
     type: "website",
     locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
-    title: "L'Oréal Analytics Dashboard",
+    title: "Beauty Scope Dashboard",
     description: "Beauty industry trends and analytics dashboard",
   },
   robots: {
@@ -57,7 +57,7 @@ export default function RootLayout({
                   <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center animate-pulseGlow">
                     <span className="text-primary-foreground font-bold text-xl">L</span>
                   </div>
-                  <div className="text-foreground font-medium">Loading L'Oréal Analytics...</div>
+                  <div className="text-foreground font-medium">Loading Beauty Scope...</div>
                   <div className="w-32 h-1 bg-secondary rounded-full overflow-hidden">
                     <div className="w-full h-full bg-gradient-to-r from-primary to-accent animate-shimmer"></div>
                   </div>

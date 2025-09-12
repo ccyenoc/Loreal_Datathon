@@ -262,7 +262,7 @@ export default function KeywordCheckerPage() {
                     <Brain className="w-5 h-5 text-primary" />
                     AI-Powered Trend Analysis
                     <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-                      Gemini AI
+                      AI Powered
                     </Badge>
                   </CardTitle>
                   <CardDescription>

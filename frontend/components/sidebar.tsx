@@ -77,7 +77,7 @@ export function Sidebar() {
           </div>
           <div className="flex-1">
             <h1 className="text-xl font-bold text-sidebar-foreground bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              L'Oréal Analytics
+              Beauty Scope
             </h1>
             <p className="text-sidebar-foreground/60 text-xs font-medium">Beauty Intelligence Platform</p>
           </div>
