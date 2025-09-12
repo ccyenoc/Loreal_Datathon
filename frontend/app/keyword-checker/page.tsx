@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Search, TrendingUp, TrendingDown, Activity, AlertCircle, Sparkles, Clock, Eye } from "lucide-react"
+import { Search, TrendingUp, TrendingDown, Activity, AlertCircle, Sparkles, Clock, Eye, Brain, Lightbulb, Target } from "lucide-react"
 import { apiService, type KeywordCheckerResponse } from "@/lib/api"
 
 export default function KeywordCheckerPage() {
@@ -195,23 +195,6 @@ export default function KeywordCheckerPage() {
                       </div>
                     </div>
                   </div>
-
-                  <Separator />
-
-                  {/* Keyword Match */}
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-medium text-muted-foreground">Closest Keyword in Category</h4>
-                      <Badge variant="outline" className="text-xs">
-                        {(result.keyword_similarity * 100).toFixed(1)}% similarity
-                      </Badge>
-                    </div>
-                    <div className="p-4 bg-secondary/50 rounded-lg">
-                      <div className="text-lg font-semibold text-foreground">
-                        {result.matched_keyword}
-                      </div>
-                    </div>
-                  </div>
                 </CardContent>
               </Card>
 
@@ -272,42 +255,64 @@ export default function KeywordCheckerPage() {
                 </Card>
               </div>
 
-              {/* Detailed Metrics */}
-              <Card className="shadow-lg border-0 bg-card/95 backdrop-blur-sm">
+              {/* AI Analysis Section */}
+              <Card className="shadow-lg border-0 bg-gradient-to-r from-primary/5 to-accent/5 backdrop-blur-sm">
                 <CardHeader>
-                  <CardTitle>Detailed Metrics</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <Brain className="w-5 h-5 text-primary" />
+                    AI-Powered Trend Analysis
+                    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                      Gemini AI
+                    </Badge>
+                  </CardTitle>
                   <CardDescription>
-                    Complete analysis breakdown for the matched keyword
+                    Advanced insights based on current metrics and beauty industry patterns
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-6">
+                  {/* Future Trend Prediction */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-primary" />
+                      <h4 className="text-sm font-semibold text-muted-foreground">Future Trend Prediction</h4>
+                    </div>
+                    <div className="p-4 bg-background/50 rounded-lg border">
+                      <p className="text-sm text-foreground leading-relaxed">
+                        {result.future_trend}
+                      </p>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center py-2 border-b">
-                        <span className="text-sm font-medium">Your Keyword:</span>
-                        <span className="text-sm text-muted-foreground">{result.user_keyword}</span>
+                    {/* Key Insights */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Lightbulb className="w-4 h-4 text-amber-500" />
+                        <h4 className="text-sm font-semibold text-muted-foreground">Key Insights</h4>
                       </div>
-                      <div className="flex justify-between items-center py-2 border-b">
-                        <span className="text-sm font-medium">Matched Category:</span>
-                        <span className="text-sm text-muted-foreground">{result.matched_category.replace(/_/g, ' ')}</span>
-                      </div>
-                      <div className="flex justify-between items-center py-2 border-b">
-                        <span className="text-sm font-medium">Category Similarity:</span>
-                        <span className="text-sm text-muted-foreground">{(result.category_similarity * 100).toFixed(1)}%</span>
+                      <div className="space-y-2">
+                        {result.insights.map((insight, index) => (
+                          <div key={index} className="flex items-start gap-2 p-3 bg-background/50 rounded-lg border">
+                            <div className="w-2 h-2 bg-amber-500 rounded-full mt-2 flex-shrink-0" />
+                            <p className="text-sm text-foreground">{insight}</p>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center py-2 border-b">
-                        <span className="text-sm font-medium">Matched Keyword:</span>
-                        <span className="text-sm text-muted-foreground">{result.matched_keyword}</span>
+
+                    {/* Recommendations */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Target className="w-4 h-4 text-green-500" />
+                        <h4 className="text-sm font-semibold text-muted-foreground">Strategic Recommendations</h4>
                       </div>
-                      <div className="flex justify-between items-center py-2 border-b">
-                        <span className="text-sm font-medium">Keyword Similarity:</span>
-                        <span className="text-sm text-muted-foreground">{(result.keyword_similarity * 100).toFixed(1)}%</span>
-                      </div>
-                      <div className="flex justify-between items-center py-2 border-b">
-                        <span className="text-sm font-medium">Raw Engagement Score:</span>
-                        <span className="text-sm text-muted-foreground">{result.engagement_rate.toFixed(4)}</span>
+                      <div className="space-y-2">
+                        {result.recommendations.map((recommendation, index) => (
+                          <div key={index} className="flex items-start gap-2 p-3 bg-background/50 rounded-lg border">
+                            <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0" />
+                            <p className="text-sm text-foreground">{recommendation}</p>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>

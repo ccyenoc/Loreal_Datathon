@@ -86,6 +86,9 @@ export interface KeywordCheckerResponse {
   velocity_description: string;
   engagement_description: string;
   phase_description: string;
+  future_trend: string;
+  insights: string[];
+  recommendations: string[];
 }
 
 class ApiService {
