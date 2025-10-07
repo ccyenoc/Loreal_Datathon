@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Notebooks
+notebook/
+*.ipynb
+
+# Documentation
+README.md
+METRICS_EXPLANATION.md
+
+# Models (if you have saved models)
+models/
+
+# Environment variables (should be set in Render)
+.env
+.env.local
